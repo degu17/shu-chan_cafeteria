@@ -1,6 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { format, startOfMonth, endOfMonth, isSameDay, getDate, getMonth, getYear, addMonths } from 'date-fns';
+import { ja } from 'date-fns/locale';
+import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
+
+// 日本のタイムゾーン
+const TIMEZONE = 'Asia/Tokyo';
 
 interface CalendarProps {
   className?: string;
@@ -15,32 +21,35 @@ const months = [
 ];
 
 export default function Calendar({ className = '', onDateSelect }: CalendarProps) {
-  const [currentDate, setCurrentDate] = useState(new Date());
+  // 日本時間での現在日付を取得
+  const initialDate = toZonedTime(new Date(), TIMEZONE);
+  const [currentDate, setCurrentDate] = useState(initialDate);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   
   // 現在の年と月を取得
-  const currentYear = currentDate.getFullYear();
-  const currentMonth = currentDate.getMonth();
+  const currentYear = getYear(currentDate);
+  const currentMonth = getMonth(currentDate);
   
-  // 今月の最初の日
-  const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
-  // 今月の最後の日
-  const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0);
+  // 今月の最初と最後の日（日本時間）
+  const firstDayOfMonth = toZonedTime(startOfMonth(currentDate), TIMEZONE);
+  const lastDayOfMonth = toZonedTime(endOfMonth(currentDate), TIMEZONE);
   
   // 今月の日数
-  const daysInMonth = lastDayOfMonth.getDate();
+  const daysInMonth = getDate(lastDayOfMonth);
   
   // 最初の日の曜日（0: 日曜日, 1: 月曜日, ...)
   const startingDayOfWeek = firstDayOfMonth.getDay();
   
   // 前月と次月の設定
   const goToPreviousMonth = () => {
-    setCurrentDate(new Date(currentYear, currentMonth - 1, 1));
+    const newDate = toZonedTime(addMonths(currentDate, -1), TIMEZONE);
+    setCurrentDate(newDate);
     setSelectedDate(null); // 月を変更したら選択をリセット
   };
   
   const goToNextMonth = () => {
-    setCurrentDate(new Date(currentYear, currentMonth + 1, 1));
+    const newDate = toZonedTime(addMonths(currentDate, 1), TIMEZONE);
+    setCurrentDate(newDate);
     setSelectedDate(null); // 月を変更したら選択をリセット
   };
   
@@ -48,11 +57,16 @@ export default function Calendar({ className = '', onDateSelect }: CalendarProps
   const handleDateClick = (day: number, isCurrentMonth: boolean) => {
     if (!isCurrentMonth) return; // 当月以外の日付はクリック不可
     
-    const selectedDate = new Date(currentYear, currentMonth, day);
-    setSelectedDate(selectedDate);
+    // 選択された日付を日本時間で正確に設定
+    const rawDate = new Date(currentYear, currentMonth, day);
+    const newSelectedDate = toZonedTime(rawDate, TIMEZONE);
+    
+    // 時間部分を0に設定して比較の一貫性を保つ
+    newSelectedDate.setHours(0, 0, 0, 0);
+    setSelectedDate(newSelectedDate);
     
     if (onDateSelect) {
-      onDateSelect(selectedDate);
+      onDateSelect(newSelectedDate);
     }
   };
   
@@ -60,31 +74,46 @@ export default function Calendar({ className = '', onDateSelect }: CalendarProps
   const generateCalendarDays = () => {
     const days = [];
     
+    // 日本時間の今日の日付を取得
+    const today = toZonedTime(new Date(), TIMEZONE);
+    today.setHours(0, 0, 0, 0);
+    
     // 前月の日を追加
     for (let i = 0; i < startingDayOfWeek; i++) {
-      const prevMonthLastDay = new Date(currentYear, currentMonth, 0).getDate();
+      // 前月の最終日を日本時間で計算
+      const prevMonthDate = new Date(currentYear, currentMonth, 0);
+      const prevMonthLastDay = prevMonthDate.getDate();
+      const day = prevMonthLastDay - startingDayOfWeek + i + 1;
+      
+      // 日付を日本時間で生成
+      const date = toZonedTime(new Date(currentYear, currentMonth - 1, day), TIMEZONE);
+      date.setHours(0, 0, 0, 0);
+      
       days.push({
-        day: prevMonthLastDay - startingDayOfWeek + i + 1,
+        day: day,
         isCurrentMonth: false,
         isToday: false,
-        date: new Date(currentYear, currentMonth - 1, prevMonthLastDay - startingDayOfWeek + i + 1)
+        date: date
       });
     }
     
     // 今月の日を追加
-    const today = new Date();
-    const isCurrentMonthAndYear = today.getMonth() === currentMonth && 
-                                today.getFullYear() === currentYear;
-    
     for (let i = 1; i <= daysInMonth; i++) {
-      const date = new Date(currentYear, currentMonth, i);
+      // 日付を日本時間で生成
+      const date = toZonedTime(new Date(currentYear, currentMonth, i), TIMEZONE);
+      date.setHours(0, 0, 0, 0);
+      
+      // isSameDayを使用して今日かどうかを判断
+      const isToday = isSameDay(today, date);
+      
+      // 選択された日付かどうかを判断
+      const isSelected = selectedDate ? isSameDay(selectedDate, date) : false;
+      
       days.push({
         day: i,
         isCurrentMonth: true,
-        isToday: isCurrentMonthAndYear && today.getDate() === i,
-        isSelected: selectedDate && date.getDate() === selectedDate.getDate() && 
-                    date.getMonth() === selectedDate.getMonth() && 
-                    date.getFullYear() === selectedDate.getFullYear(),
+        isToday: isToday,
+        isSelected: isSelected,
         date: date
       });
     }
@@ -94,11 +123,15 @@ export default function Calendar({ className = '', onDateSelect }: CalendarProps
     const remainingDays = totalDaysToShow - days.length;
     
     for (let i = 1; i <= remainingDays; i++) {
+      // 日付を日本時間で生成
+      const date = toZonedTime(new Date(currentYear, currentMonth + 1, i), TIMEZONE);
+      date.setHours(0, 0, 0, 0);
+      
       days.push({
         day: i,
         isCurrentMonth: false,
         isToday: false,
-        date: new Date(currentYear, currentMonth + 1, i)
+        date: date
       });
     }
     
@@ -121,7 +154,7 @@ export default function Calendar({ className = '', onDateSelect }: CalendarProps
           </button>
           
           <h2 className="text-2xl font-bold">
-            {currentYear}年 {months[currentMonth]}
+            {format(currentDate, 'yyyy年 M月', { locale: ja })}
           </h2>
           
           <button 

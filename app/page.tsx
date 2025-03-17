@@ -5,10 +5,15 @@ import Calendar from '@/components/calendar-view';
 import RestaurantReservation from '@/components/menu-form';
 import { getMenus, getBusinessCalendar } from '@/lib/api';
 import { Menu, BusinessCalendar } from '@/lib/supabase';
+import { AnimatePresence } from 'framer-motion';
+import ReservationDetailsModal from '@/components/reservation/ReservationDetailsModal';
+import { useUser } from '@/lib/UserContext';
 
 export default function Home() {
+  const { userId, toggleUserId } = useUser();
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isReservationDetailsModalOpen, setIsReservationDetailsModalOpen] = useState(false);
   const [menus, setMenus] = useState<Menu[]>([]);
   const [businessDays, setBusinessDays] = useState<BusinessCalendar[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,10 +33,16 @@ export default function Home() {
         
         // 営業カレンダーデータの取得
         try {
-          const calendarData = await getBusinessCalendar();
-          setBusinessDays(calendarData);
+          // 将来的に実装予定のため、現時点ではコメントアウト
+          // const calendarData = await getBusinessCalendar();
+          // setBusinessDays(calendarData);
+          
+          // 仮のデータを設定
+          setBusinessDays([]);
         } catch (calendarErr) {
-          console.error('営業カレンダーデータの取得に失敗しました:', calendarErr);
+          // エラーログを表示しない
+          // console.error('営業カレンダーデータの取得に失敗しました:', calendarErr);
+          setBusinessDays([]);
         }
         
         setError(null);
@@ -85,21 +96,24 @@ export default function Home() {
   return (
     <div>
       <header>
-      <div className="flex space-x-4 p-4">
-        <button className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-          ホーム
-        </button>
-        <button className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
-          予約の確認
-        </button>
-        <button className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded">
-          予約の修正
-        </button>
-      <div className="flex-grow flex justify-end">
-        <button className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">
-          管理者に変更
-        </button>
-      </div>
+     <div className="flex items-center justify-between p-4 bg-white shadow">
+      <button
+        className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded whitespace-nowrap"
+        onClick={() => setIsReservationDetailsModalOpen(true)}
+      >
+        予約確認
+      </button>
+      
+      <a className="text-2xl font-bold text-center">
+        しゅうちゃん食堂
+      </a>
+      
+      <button 
+        className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded whitespace-nowrap"
+        onClick={toggleUserId}
+      >
+        権限を変更 (現在: ユーザー{userId})
+      </button>
       </div>
       </header>
       <main>
@@ -161,10 +175,22 @@ export default function Home() {
               <RestaurantReservation 
                 selectedDate={selectedDate} 
                 onReservationComplete={closeModal}
+                userId={userId}
               />
             </div>
           </div>
         )}
+
+        {/* 予約詳細モーダル */}
+        <AnimatePresence>
+          {isReservationDetailsModalOpen && (
+            <ReservationDetailsModal
+              isOpen={isReservationDetailsModalOpen}
+              onClose={() => setIsReservationDetailsModalOpen(false)}
+              userId={userId}
+            />
+          )}
+        </AnimatePresence>
       </main>
     </div>
   );

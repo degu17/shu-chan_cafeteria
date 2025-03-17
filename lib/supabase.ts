@@ -22,6 +22,7 @@ export type User = {
 
 // 予約テーブル関連の型定義
 export type Reservation = {
+  reservation_id: number;
   menu_id: number;
   user_id: number;
   reserved_time: string;
