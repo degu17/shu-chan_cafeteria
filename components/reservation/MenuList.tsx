@@ -4,12 +4,11 @@ import { Menu } from '@/lib/supabase';
 
 interface MenuListProps {
   menus: Menu[];
-  selectedMenu: Menu | null;
-  onMenuSelect: (menu: Menu) => void;
-  isProcessing: boolean;
+  onSelect: (menu: Menu) => void;
+  selectedMenuId?: number;
 }
 
-export default function MenuList({ menus, selectedMenu, onMenuSelect, isProcessing }: MenuListProps) {
+export default function MenuList({ menus, onSelect, selectedMenuId }: MenuListProps) {
   if (menus.length === 0) {
     return <p className="text-gray-500">この日のメニューはまだ登録されていません</p>;
   }
@@ -44,11 +43,11 @@ export default function MenuList({ menus, selectedMenu, onMenuSelect, isProcessi
                 ? 'border-gray-200 bg-gray-50 cursor-not-allowed'
                 : menu.reserved
                   ? 'border-green-500 bg-green-50'
-                  : selectedMenu?.menu_id === menu.menu_id
+                  : selectedMenuId === menu.menu_id
                     ? 'border-blue-500 bg-blue-50'
                     : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
             }`}
-            onClick={() => !isProcessing && isSelectable && onMenuSelect(menu)}
+            onClick={() => isSelectable && onSelect(menu)}
           >
             <div className="flex justify-between items-start">
               <div>

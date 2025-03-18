@@ -15,6 +15,7 @@ interface ReservationDetail {
   menu_id: number;
   user_id: number;
   reserved_time: string;
+  menu_only?: boolean;
   menu_tbl: {
     menu_id: number;
     name: string;
@@ -86,14 +87,23 @@ export default function ReservationDetailsModal({ isOpen, onClose, userId }: Res
           ) : (
             <div className="space-y-4">
               {reservations.map((reservation) => (
-                <div key={reservation.reservation_id} className="border rounded-lg p-4 bg-blue-50">
+                <div 
+                  key={reservation.reservation_id} 
+                  className={`border rounded-lg p-4 ${reservation.menu_only === false ? 'bg-yellow-50' : 'bg-blue-50'}`}
+                >
                   <div className="mb-2">
                     <span className="font-semibold">ユーザー名: </span>
                     <span>{reservation.user_tbl.names}</span>
                   </div>
                   <div className="mb-2">
                     <span className="font-semibold">メニュー: </span>
-                    <span>{reservation.menu_tbl.name}</span>
+                    {reservation.menu_only === false ? (
+                      <span className="text-yellow-700">
+                        <strong>来店時間のみの予約</strong>
+                      </span>
+                    ) : (
+                      <span>{reservation.menu_tbl.name}</span>
+                    )}
                   </div>
                   <div className="mb-2">
                     <span className="font-semibold">予約日: </span>

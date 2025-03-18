@@ -3,14 +3,15 @@
 import { useState, useEffect } from 'react';
 import Calendar from '@/components/calendar-view';
 import RestaurantReservation from '@/components/menu-form';
-import { getMenus, getBusinessCalendar } from '@/lib/api';
-import { Menu, BusinessCalendar } from '@/lib/supabase';
+import { getMenus, getBusinessCalendar, getUserById } from '@/lib/api';
+import { Menu, BusinessCalendar, User } from '@/lib/supabase';
 import { AnimatePresence } from 'framer-motion';
 import ReservationDetailsModal from '@/components/reservation/ReservationDetailsModal';
 import { useUser } from '@/lib/UserContext';
+import MenuAdminForm from '@/components/admin/menu-admin-form';
 
 export default function Home() {
-  const { userId, toggleUserId } = useUser();
+  const { userId, setUserId, users, loading: userLoading, currentUser } = useUser();
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isReservationDetailsModalOpen, setIsReservationDetailsModalOpen] = useState(false);
@@ -18,6 +19,7 @@ export default function Home() {
   const [businessDays, setBusinessDays] = useState<BusinessCalendar[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string>('user');
 
   useEffect(() => {
     async function fetchData() {
@@ -57,6 +59,20 @@ export default function Home() {
     fetchData();
   }, []);
 
+  useEffect(() => {
+    async function fetchUserRole() {
+      try {
+        const user = await getUserById(userId);
+        setUserRole(user.role);
+      } catch (err) {
+        console.error('ユーザー情報の取得に失敗しました:', err);
+        setUserRole('user'); // エラー時はデフォルトでユーザー権限に設定
+      }
+    }
+    
+    fetchUserRole();
+  }, [userId]);
+
   const handleDateSelect = (date: Date) => {
     setSelectedDate(date);
     setIsModalOpen(true);
@@ -64,6 +80,7 @@ export default function Home() {
 
   const closeModal = () => {
     setIsModalOpen(false);
+    setSelectedDate(null);
   };
 
   // 同じ日付に予約済みのメニューがあるかチェックする関数
@@ -108,12 +125,26 @@ export default function Home() {
         しゅうちゃん食堂
       </a>
       
-      <button 
-        className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded whitespace-nowrap"
-        onClick={toggleUserId}
-      >
-        権限を変更 (現在: ユーザー{userId})
-      </button>
+      <div className="flex items-center">
+        <label htmlFor="userSelect" className="mr-2 text-gray-700">ユーザー:</label>
+        <select
+          id="userSelect"
+          value={userId}
+          onChange={(e) => setUserId(Number(e.target.value))}
+          className="border border-gray-300 rounded py-2 px-3 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          disabled={userLoading}
+        >
+          {userLoading ? (
+            <option>読み込み中...</option>
+          ) : (
+            users.map((user) => (
+              <option key={user.id} value={user.id}>
+                {user.names} ({user.role})
+              </option>
+            ))
+          )}
+        </select>
+      </div>
       </div>
       </header>
       <main>
@@ -172,11 +203,19 @@ export default function Home() {
                 </svg>
               </button>
               
-              <RestaurantReservation 
-                selectedDate={selectedDate} 
-                onReservationComplete={closeModal}
-                userId={userId}
-              />
+              {userRole === 'admin' ? (
+                <MenuAdminForm
+                  selectedDate={selectedDate}
+                  onComplete={closeModal}
+                  userId={userId}
+                />
+              ) : (
+                <RestaurantReservation 
+                  selectedDate={selectedDate} 
+                  onReservationComplete={closeModal}
+                  userId={userId}
+                />
+              )}
             </div>
           </div>
         )}

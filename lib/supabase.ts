@@ -26,11 +26,13 @@ export type Reservation = {
   menu_id: number;
   user_id: number;
   reserved_time: string;
+  menu_only?: boolean; // メニュー予約か時間のみの予約かを区別するフラグ
 };
 
 // 営業カレンダーテーブル関連の型定義
 export type BusinessCalendar = {
   day: string;
-  delivery_time: string;
   holiday: boolean;
+  start_time?: string;
+  end_time?: string;
 }; 

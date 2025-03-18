@@ -6,7 +6,7 @@ import { Menu } from '@/lib/supabase';
 interface CancelModalProps {
   isOpen: boolean;
   selectedDate: Date | null;
-  menuToCancel: Menu | null;
+  selectedMenu: Menu | null;
   onClose: () => void;
   onConfirm: () => void;
   isProcessing: boolean;
@@ -15,12 +15,12 @@ interface CancelModalProps {
 export default function CancelModal({
   isOpen,
   selectedDate,
-  menuToCancel,
+  selectedMenu,
   onClose,
   onConfirm,
   isProcessing
 }: CancelModalProps) {
-  if (!isOpen || !menuToCancel) return null;
+  if (!isOpen || !selectedMenu) return null;
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
@@ -55,13 +55,15 @@ export default function CancelModal({
               </div>
               
               <div className="mb-4">
-                <p className="text-sm text-gray-500">提供時間</p>
-                <p className="font-medium text-gray-900">12:00</p>
+                <p className="text-sm text-gray-500">来店時間</p>
+                <p className="font-medium text-gray-900">
+                  （予約済み時間）
+                </p>
               </div>
               
               <div className="mb-2">
                 <p className="text-sm text-gray-500">メニュー</p>
-                <p className="font-medium text-gray-900">{menuToCancel.name}</p>
+                <p className="font-medium text-gray-900">{selectedMenu.name}</p>
               </div>
             </div>
           </div>

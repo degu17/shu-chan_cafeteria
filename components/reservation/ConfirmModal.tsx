@@ -6,7 +6,9 @@ import { Menu } from '@/lib/supabase';
 interface ConfirmModalProps {
   isOpen: boolean;
   selectedDate: Date;
-  selectedMenu: Menu;
+  selectedMenu: Menu | null;
+  selectedTime: string;
+  timeOnlyReservation?: boolean;
   onClose: () => void;
   onConfirm: () => void;
   isProcessing: boolean;
@@ -16,11 +18,13 @@ export default function ConfirmModal({
   isOpen,
   selectedDate,
   selectedMenu,
+  selectedTime,
+  timeOnlyReservation = false,
   onClose,
   onConfirm,
   isProcessing
 }: ConfirmModalProps) {
-  if (!isOpen || !selectedMenu) return null;
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
@@ -55,14 +59,22 @@ export default function ConfirmModal({
               </div>
               
               <div className="mb-4">
-                <p className="text-sm text-gray-500">提供時間</p>
-                <p className="font-medium text-gray-900">12:00</p>
+                <p className="text-sm text-gray-500">来店時間</p>
+                <p className="font-medium text-gray-900">{selectedTime}</p>
               </div>
               
-              <div className="mb-2">
-                <p className="text-sm text-gray-500">メニュー</p>
-                <p className="font-medium text-gray-900">{selectedMenu.name}</p>
-              </div>
+              {timeOnlyReservation ? (
+                <div className="mb-2 bg-yellow-50 p-3 rounded-md">
+                  <p className="text-yellow-700">
+                    <strong>注意:</strong> この予約はメニューを含まず、来店時間のみを予約します。
+                  </p>
+                </div>
+              ) : selectedMenu ? (
+                <div className="mb-2">
+                  <p className="text-sm text-gray-500">メニュー</p>
+                  <p className="font-medium text-gray-900">{selectedMenu.name}</p>
+                </div>
+              ) : null}
             </div>
           </div>
           
