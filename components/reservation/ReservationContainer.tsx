@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
-import { getMenusByDate, createReservation, updateMenu, deleteReservation, deleteReservationByUserId, deleteReservationByDate, getBusinessTimeByDate } from '@/lib/api';
+import { getMenusByDate, createReservation, updateMenu, deleteReservation, getBusinessTimeByDate, getHolidayStatus, getReservationByMenuId } from '@/lib/api';
 import { Menu } from '@/lib/supabase';
+import { useUser } from '@/lib/UserContext';
 import MenuList from './MenuList';
 import ConfirmModal from './ConfirmModal';
 import CancelModal from './CancelModal';
@@ -14,9 +15,13 @@ interface ReservationContainerProps {
   selectedDate: Date | null;
   onReservationComplete?: () => void; // 予約完了時のコールバック
   userId: number;
+  isHoliday?: boolean; // 親コンポーネントから渡される休業日フラグ
 }
 
-export default function ReservationContainer({ selectedDate, onReservationComplete, userId }: ReservationContainerProps) {
+export default function ReservationContainer({ selectedDate, onReservationComplete, userId, isHoliday: isHolidayProp = false }: ReservationContainerProps) {
+  // ユーザーコンテキストからユーザー情報を取得
+  const { currentUser } = useUser();
+  
   // 状態変数
   const [menus, setMenus] = useState<Menu[]>([]);
   const [selectedMenu, setSelectedMenu] = useState<Menu | null>(null);
@@ -30,6 +35,18 @@ export default function ReservationContainer({ selectedDate, onReservationComple
   const [businessHours, setBusinessHours] = useState({ start_time: '17:00', end_time: '21:00' });
   const [availableTimes, setAvailableTimes] = useState<string[]>([]);
   const [timeOnlyReservation, setTimeOnlyReservation] = useState(false);
+  const [isHoliday, setIsHoliday] = useState(isHolidayProp);
+  const [reservedMenuOwners, setReservedMenuOwners] = useState<Record<number, number>>({});
+  
+  // isHolidayPropが変更されたらisHoliday状態を更新
+  useEffect(() => {
+    setIsHoliday(isHolidayProp);
+    
+    // 親から休業日フラグが渡された場合はAPIコールをスキップするためにfetchDataは呼び出さない
+    if (!isHolidayProp && selectedDate) {
+      fetchData(selectedDate);
+    }
+  }, [isHolidayProp, selectedDate]);
   
   // 営業時間から選択可能な時間枠を生成する関数
   const generateTimeSlots = (startTime: string, endTime: string) => {
@@ -59,77 +76,115 @@ export default function ReservationContainer({ selectedDate, onReservationComple
   };
   
   // 選択された日付に基づいてメニューを取得
-  useEffect(() => {
-    if (selectedDate) {
-      const fetchData = async () => {
-        try {
-          setLoading(true);
-          
-          // 日付をYYYY-MM-DD形式に変換（日本時間を保持）
-          const year = selectedDate.getFullYear();
-          const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-          const day = String(selectedDate.getDate()).padStart(2, '0');
-          const dateStr = `${year}-${month}-${day}`;
-          
-          // 選択した日付のメニューを取得
-          const menuData = await getMenusByDate(dateStr);
-          setMenus(menuData);
-          
-          // 営業時間を取得
-          try {
-            const businessTime = await getBusinessTimeByDate(dateStr);
-            // デフォルト営業時間
-            const defaultTime = {
-              start_time: '17:00',
-              end_time: '21:00'
-            };
-            
-            // nullやundefinedの場合はデフォルト値を使用
-            const actualTime = businessTime || defaultTime;
-            setBusinessHours({
-              start_time: actualTime.start_time || defaultTime.start_time,
-              end_time: actualTime.end_time || defaultTime.end_time
-            });
-            
-            // 利用可能な時間枠を生成
-            const timeSlots = generateTimeSlots(
-              actualTime.start_time || defaultTime.start_time, 
-              actualTime.end_time || defaultTime.end_time
-            );
-            setAvailableTimes(timeSlots);
-            
-            // デフォルトで最初の時間枠を選択
-            if (timeSlots.length > 0) {
-              setSelectedTime(timeSlots[0]);
-            }
-          } catch (timeErr) {
-            console.error('営業時間の取得に失敗しました:', timeErr);
-            
-            // エラー時はデフォルト値を使用
-            const defaultTime = {
-              start_time: '17:00',
-              end_time: '21:00'
-            };
-            setBusinessHours(defaultTime);
-            
-            // デフォルト値で時間枠を生成
-            const timeSlots = generateTimeSlots(defaultTime.start_time, defaultTime.end_time);
-            setAvailableTimes(timeSlots);
-            
-            if (timeSlots.length > 0) {
-              setSelectedTime(timeSlots[0]);
-            }
-          }
-          
-        } catch (err) {
-          console.error('データの取得に失敗しました:', err);
-          setError('データの取得に失敗しました');
-        } finally {
-          setLoading(false);
-        }
-      };
+  const fetchData = async (date: Date) => {
+    try {
+      setLoading(true);
       
-      fetchData();
+      // 日付をYYYY-MM-DD形式に変換（日本時間を保持）
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      
+      // 休業日かどうかを確認
+      const holidayStatus = await getHolidayStatus(dateStr);
+      setIsHoliday(holidayStatus);
+      
+      // 休業日の場合はアラートを表示して処理を中止
+      if (holidayStatus) {
+        toast.error('この日はお休みです', {
+          duration: 5000,
+          style: {
+            background: '#FF4B4B',
+            color: '#fff',
+            fontSize: '16px',
+            padding: '16px'
+          },
+          icon: '🏖️'
+        });
+        setLoading(false);
+        return;
+      }
+      
+      // 選択した日付のメニューを取得
+      const menuData = await getMenusByDate(dateStr);
+      setMenus(menuData);
+      
+      // 予約済みメニューの所有者情報を取得
+      const reservedMenus = menuData.filter(menu => menu.reserved);
+      const ownersMap: Record<number, number> = {};
+      
+      for (const menu of reservedMenus) {
+        try {
+          const reservation = await getReservationByMenuId(menu.menu_id);
+          if (reservation) {
+            ownersMap[menu.menu_id] = reservation.user_id;
+          }
+        } catch (error) {
+          console.error(`メニューID ${menu.menu_id} の予約情報取得エラー:`, error);
+        }
+      }
+      
+      setReservedMenuOwners(ownersMap);
+      
+      // 営業時間を取得
+      try {
+        const businessTime = await getBusinessTimeByDate(dateStr);
+        // デフォルト営業時間
+        const defaultTime = {
+          start_time: '17:00',
+          end_time: '21:00'
+        };
+        
+        // nullやundefinedの場合はデフォルト値を使用
+        const actualTime = businessTime || defaultTime;
+        setBusinessHours({
+          start_time: actualTime.start_time || defaultTime.start_time,
+          end_time: actualTime.end_time || defaultTime.end_time
+        });
+        
+        // 利用可能な時間枠を生成
+        const timeSlots = generateTimeSlots(
+          actualTime.start_time || defaultTime.start_time, 
+          actualTime.end_time || defaultTime.end_time
+        );
+        setAvailableTimes(timeSlots);
+        
+        // デフォルトで最初の時間枠を選択
+        if (timeSlots.length > 0) {
+          setSelectedTime(timeSlots[0]);
+        }
+      } catch (timeErr) {
+        console.error('営業時間の取得に失敗しました:', timeErr);
+        
+        // エラー時はデフォルト値を使用
+        const defaultTime = {
+          start_time: '17:00',
+          end_time: '21:00'
+        };
+        setBusinessHours(defaultTime);
+        
+        // デフォルト値で時間枠を生成
+        const timeSlots = generateTimeSlots(defaultTime.start_time, defaultTime.end_time);
+        setAvailableTimes(timeSlots);
+        
+        if (timeSlots.length > 0) {
+          setSelectedTime(timeSlots[0]);
+        }
+      }
+      
+    } catch (err) {
+      console.error('データの取得に失敗しました:', err);
+      setError('データの取得に失敗しました');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // 選択された日付に基づいてメニューを取得
+  useEffect(() => {
+    if (selectedDate && !isHolidayProp) {
+      fetchData(selectedDate);
       // 選択をリセット
       setSelectedMenu(null);
     }
@@ -141,14 +196,43 @@ export default function ReservationContainer({ selectedDate, onReservationComple
   };
   
   // メニュー選択処理
-  const handleMenuSelect = (menu: Menu) => {
-    // 予約済みメニューの場合はキャンセル確認モーダルを表示
+  const handleMenuSelect = async (menu: Menu) => {
+    // 予約済みメニューの場合はキャンセル確認モーダルを表示する前に所有者を確認
     if (menu.reserved) {
-      setMenuToCancel(menu);
-      setIsCancelModalOpen(true);
-      return;
+      try {
+        // メニューの予約情報を取得
+        const reservation = await getReservationByMenuId(menu.menu_id);
+        
+        // 予約がない場合はエラー
+        if (!reservation) {
+          toast.error('予約情報が見つかりません');
+          return;
+        }
+        
+        // 予約者と現在のユーザーが異なる場合
+        if (reservation.user_id !== userId) {
+          toast.error('他のユーザーの予約はキャンセルできません');
+          return;
+        }
+        
+        // 予約者情報を更新
+        setReservedMenuOwners({
+          ...reservedMenuOwners,
+          [menu.menu_id]: reservation.user_id
+        });
+        
+        // キャンセル確認モーダルを表示
+        setMenuToCancel(menu);
+        setIsCancelModalOpen(true);
+        return;
+      } catch (err) {
+        console.error('予約情報の取得に失敗しました:', err);
+        toast.error('予約情報の取得に失敗しました');
+        return;
+      }
     }
     
+    // 以下は通常の選択処理（予約済みでない場合）
     // 同じ日付に予約済みのメニューがあるかチェック
     const sameDate = menu.date;
     const hasReservedMenu = menus.some(m => m.date === sameDate && m.reserved && m.menu_id !== menu.menu_id);
@@ -213,11 +297,28 @@ export default function ReservationContainer({ selectedDate, onReservationComple
     try {
       setIsProcessing(true);
       
+      // キャンセル前に予約情報を再確認（セキュリティ対策）
+      const reservation = await getReservationByMenuId(menuToCancel.menu_id);
+      
+      // 予約がない場合
+      if (!reservation) {
+        toast.error('予約情報が見つかりません');
+        setIsCancelModalOpen(false);
+        return;
+      }
+      
+      // 予約者と現在のユーザーが異なる場合
+      if (reservation.user_id !== userId) {
+        toast.error('他のユーザーの予約はキャンセルできません');
+        setIsCancelModalOpen(false);
+        return;
+      }
+      
       // メニューの予約状態を解除
       await updateMenu(menuToCancel.menu_id, { reserved: false });
       
       // 予約情報を削除
-      await deleteReservation(menuToCancel.menu_id, userId);
+      await deleteReservation(menuToCancel.menu_id, reservation.user_id);
       
       // メニューリストを更新
       const updatedMenus = menus.map(menu => {
@@ -371,6 +472,23 @@ export default function ReservationContainer({ selectedDate, onReservationComple
     );
   }
   
+  // 休業日の場合
+  if (isHoliday) {
+    return (
+      <div className="bg-red-50 p-6 rounded-lg text-center">
+        <div className="flex flex-col items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-red-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+          </svg>
+          <h3 className="text-xl font-bold text-red-700 mb-2">この日はお休みです</h3>
+          <p className="text-red-600">
+            申し訳ありませんが、{selectedDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}は休業日です。
+          </p>
+        </div>
+      </div>
+    );
+  }
+  
   // データ読み込み中
   if (loading) {
     return (
@@ -441,6 +559,7 @@ export default function ReservationContainer({ selectedDate, onReservationComple
               menus={menus}
               onSelect={handleMenuSelect}
               selectedMenuId={selectedMenu?.menu_id}
+              reservedMenuOwners={reservedMenuOwners}
             />
           ) : (
             <p className="text-gray-500 p-4 bg-gray-50 rounded-md">

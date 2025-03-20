@@ -127,4 +127,41 @@ export async function deleteReservationByDate(date: string, userId: number) {
   }
   
   return true;
+}
+
+// 管理者用：すべてのユーザーの予約情報を取得する関数
+export async function getAllUsersReservationDetails() {
+  const { data, error } = await supabase
+    .from('reservation_tbl')
+    .select(`
+      reservation_id,
+      menu_id,
+      user_id,
+      reserved_time,
+      menu_only,
+      menu_tbl(menu_id, name, date),
+      user_tbl(id, names)
+    `);
+  
+  if (error) throw error;
+  return data;
+}
+
+// メニューIDに基づいて予約情報を取得する関数
+export async function getReservationByMenuId(menuId: number) {
+  const { data, error } = await supabase
+    .from('reservation_tbl')
+    .select('*')
+    .eq('menu_id', menuId)
+    .single();
+  
+  if (error) {
+    // データが見つからない場合もエラーになるため、nullを返す
+    if (error.code === 'PGRST116') {
+      return null;
+    }
+    throw error;
+  }
+  
+  return data as Reservation;
 } 

@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { getUserReservationDetails } from '@/lib/api';
+import { getUserReservationDetails, getAllUsersReservationDetails } from '@/lib/api';
+import { useUser } from '@/lib/UserContext';
 
 interface ReservationDetailsModalProps {
   isOpen: boolean;
@@ -31,14 +32,21 @@ export default function ReservationDetailsModal({ isOpen, onClose, userId }: Res
   const [reservations, setReservations] = useState<ReservationDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { currentUser } = useUser();
 
   useEffect(() => {
     if (isOpen) {
       const fetchReservations = async () => {
         try {
           setLoading(true);
-          const data = await getUserReservationDetails(userId);
-          setReservations(data as unknown as ReservationDetail[]);
+          
+          if (currentUser?.role === 'admin') {
+            const data = await getAllUsersReservationDetails();
+            setReservations(data as unknown as ReservationDetail[]);
+          } else {
+            const data = await getUserReservationDetails(userId);
+            setReservations(data as unknown as ReservationDetail[]);
+          }
           setError(null);
         } catch (err) {
           console.error('予約情報の取得に失敗しました:', err);
@@ -50,7 +58,7 @@ export default function ReservationDetailsModal({ isOpen, onClose, userId }: Res
 
       fetchReservations();
     }
-  }, [isOpen, userId]);
+  }, [isOpen, userId, currentUser]);
 
   if (!isOpen) return null;
 
@@ -63,14 +71,16 @@ export default function ReservationDetailsModal({ isOpen, onClose, userId }: Res
       onClick={onClose}
     >
       <motion.div
-        className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4"
+        className={`bg-white rounded-lg shadow-xl mx-4 max-h-[80vh] overflow-y-auto ${currentUser?.role === 'admin' ? 'w-full max-w-2xl' : 'w-full max-w-md'}`}
         initial={{ scale: 0.9, y: 20 }}
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.9, y: 20 }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6">
-          <h2 className="text-2xl font-bold mb-4 text-gray-800">予約の確認</h2>
+          <h2 className="text-2xl font-bold mb-4 text-gray-800">
+            {currentUser?.role === 'admin' ? '全ユーザーの予約確認' : '予約の確認'}
+          </h2>
           
           {loading ? (
             <div className="py-8 text-center">

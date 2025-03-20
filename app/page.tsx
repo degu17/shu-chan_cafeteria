@@ -20,6 +20,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string>('user');
+  const [isSelectedDateHoliday, setIsSelectedDateHoliday] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -73,14 +74,16 @@ export default function Home() {
     fetchUserRole();
   }, [userId]);
 
-  const handleDateSelect = (date: Date) => {
+  const handleDateSelect = (date: Date, isHoliday: boolean = false) => {
     setSelectedDate(date);
+    setIsSelectedDateHoliday(isHoliday);
     setIsModalOpen(true);
   };
 
   const closeModal = () => {
     setIsModalOpen(false);
     setSelectedDate(null);
+    setIsSelectedDateHoliday(false);
   };
 
   // 同じ日付に予約済みのメニューがあるかチェックする関数
@@ -214,6 +217,7 @@ export default function Home() {
                   selectedDate={selectedDate} 
                   onReservationComplete={closeModal}
                   userId={userId}
+                  isHoliday={isSelectedDateHoliday}
                 />
               )}
             </div>

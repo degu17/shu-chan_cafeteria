@@ -1,16 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { format, startOfMonth, endOfMonth, isSameDay, getDate, getMonth, getYear, addMonths } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
+import { getBusinessCalendar } from '@/lib/api';
+import { BusinessCalendar } from '@/lib/supabase';
 
 // 日本のタイムゾーン
 const TIMEZONE = 'Asia/Tokyo';
 
 interface CalendarProps {
   className?: string;
-  onDateSelect?: (date: Date) => void;
+  onDateSelect?: (date: Date, isHoliday?: boolean) => void;
 }
 
 // 日本語の曜日と月の名前
@@ -25,6 +27,34 @@ export default function Calendar({ className = '', onDateSelect }: CalendarProps
   const initialDate = toZonedTime(new Date(), TIMEZONE);
   const [currentDate, setCurrentDate] = useState(initialDate);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [holidays, setHolidays] = useState<Record<string, boolean>>({});
+  const [loading, setLoading] = useState(false);
+  
+  // 休業日情報を取得
+  useEffect(() => {
+    const fetchHolidays = async () => {
+      try {
+        setLoading(true);
+        const businessCalendar = await getBusinessCalendar();
+        
+        // 休業日の辞書を作成
+        const holidayMap: Record<string, boolean> = {};
+        businessCalendar.forEach(day => {
+          if (day.holiday) {
+            holidayMap[day.day] = true;
+          }
+        });
+        
+        setHolidays(holidayMap);
+      } catch (error) {
+        console.error('休業日情報の取得に失敗しました:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchHolidays();
+  }, [currentDate]);
   
   // 現在の年と月を取得
   const currentYear = getYear(currentDate);
@@ -54,8 +84,8 @@ export default function Calendar({ className = '', onDateSelect }: CalendarProps
   };
   
   // 日付クリックのハンドラー
-  const handleDateClick = (day: number, isCurrentMonth: boolean) => {
-    if (!isCurrentMonth) return; // 当月以外の日付はクリック不可
+  const handleDateClick = (day: number, isCurrentMonth: boolean, isHoliday: boolean, isPastDate: boolean) => {
+    if (!isCurrentMonth || isPastDate) return; // 当月以外や過去の日付はクリック不可
     
     // 選択された日付を日本時間で正確に設定
     const rawDate = new Date(currentYear, currentMonth, day);
@@ -66,7 +96,7 @@ export default function Calendar({ className = '', onDateSelect }: CalendarProps
     setSelectedDate(newSelectedDate);
     
     if (onDateSelect) {
-      onDateSelect(newSelectedDate);
+      onDateSelect(newSelectedDate, isHoliday);
     }
   };
   
@@ -89,11 +119,22 @@ export default function Calendar({ className = '', onDateSelect }: CalendarProps
       const date = toZonedTime(new Date(currentYear, currentMonth - 1, day), TIMEZONE);
       date.setHours(0, 0, 0, 0);
       
+      // 日付をフォーマット (YYYY-MM-DD)
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const dayStr = String(day).padStart(2, '0');
+      const dateStr = `${year}-${month}-${dayStr}`;
+      
+      // 過去の日付かチェック
+      const isPastDate = date < today;
+      
       days.push({
         day: day,
         isCurrentMonth: false,
         isToday: false,
-        date: date
+        date: date,
+        isHoliday: holidays[dateStr] || false,
+        isPastDate: isPastDate
       });
     }
     
@@ -103,18 +144,29 @@ export default function Calendar({ className = '', onDateSelect }: CalendarProps
       const date = toZonedTime(new Date(currentYear, currentMonth, i), TIMEZONE);
       date.setHours(0, 0, 0, 0);
       
+      // 日付をフォーマット (YYYY-MM-DD)
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(i).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      
       // isSameDayを使用して今日かどうかを判断
       const isToday = isSameDay(today, date);
       
       // 選択された日付かどうかを判断
       const isSelected = selectedDate ? isSameDay(selectedDate, date) : false;
       
+      // 過去の日付かチェック
+      const isPastDate = date < today;
+      
       days.push({
         day: i,
         isCurrentMonth: true,
         isToday: isToday,
         isSelected: isSelected,
-        date: date
+        date: date,
+        isHoliday: holidays[dateStr] || false,
+        isPastDate: isPastDate
       });
     }
     
@@ -127,11 +179,22 @@ export default function Calendar({ className = '', onDateSelect }: CalendarProps
       const date = toZonedTime(new Date(currentYear, currentMonth + 1, i), TIMEZONE);
       date.setHours(0, 0, 0, 0);
       
+      // 日付をフォーマット (YYYY-MM-DD)
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(i).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      
+      // 過去の日付かチェック
+      const isPastDate = date < today;
+      
       days.push({
         day: i,
         isCurrentMonth: false,
         isToday: false,
-        date: date
+        date: date,
+        isHoliday: holidays[dateStr] || false,
+        isPastDate: isPastDate
       });
     }
     
@@ -184,21 +247,29 @@ export default function Calendar({ className = '', onDateSelect }: CalendarProps
           {calendarDays.map((day, index) => (
             <div 
               key={index}
-              onClick={() => handleDateClick(day.day, day.isCurrentMonth)}
+              onClick={() => handleDateClick(day.day, day.isCurrentMonth, day.isHoliday, day.isPastDate)}
               className={`
                 relative py-4 text-center text-lg cursor-pointer transition-colors duration-200 flex items-center justify-center
                 ${!day.isCurrentMonth ? 'text-gray-400 cursor-default' : ''}
                 ${day.isToday ? 'bg-blue-100 font-bold' : ''}
                 ${day.isSelected ? 'bg-blue-500 text-white' : ''}
-                ${(day.isCurrentMonth && !day.isToday && !day.isSelected) ? 'hover:bg-gray-100' : ''}
-                ${(index % 7 === 0) && day.isCurrentMonth && !day.isSelected ? 'text-red-500' : ''}
-                ${(index % 7 === 6) && day.isCurrentMonth && !day.isSelected ? 'text-blue-500' : ''}
+                ${day.isHoliday ? 'bg-red-100 text-red-800 cursor-not-allowed' : ''}
+                ${day.isPastDate ? 'text-gray-400 bg-gray-100 cursor-not-allowed' : ''}
+                ${(day.isCurrentMonth && !day.isToday && !day.isSelected && !day.isHoliday && !day.isPastDate) ? 'hover:bg-gray-100' : ''}
+                ${(index % 7 === 0) && day.isCurrentMonth && !day.isSelected && !day.isHoliday && !day.isPastDate ? 'text-red-500' : ''}
+                ${(index % 7 === 6) && day.isCurrentMonth && !day.isSelected && !day.isHoliday && !day.isPastDate ? 'text-blue-500' : ''}
               `}
             >
               {day.day}
               {day.isCurrentMonth && (
                 <div className="absolute bottom-1 left-0 right-0 flex justify-center">
-                  <div className={`h-1 w-1 rounded-full ${day.isSelected ? 'bg-white' : 'bg-gray-300'}`}></div>
+                  {day.isHoliday ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                    </svg>
+                  ) : (
+                    <div className={`h-1 w-1 rounded-full ${day.isSelected ? 'bg-white' : 'bg-gray-300'}`}></div>
+                  )}
                 </div>
               )}
             </div>

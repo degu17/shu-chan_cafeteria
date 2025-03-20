@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getMenusByDate, getBusinessTimeByDate, updateBusinessTime, addMenu, deleteMenu } from '@/lib/api';
+import { getMenusByDate, getBusinessTimeByDate, updateBusinessTime, addMenu, deleteMenu, updateHolidayStatus, getHolidayStatus } from '@/lib/api';
 import { Menu } from '@/lib/supabase';
 import { toast } from 'react-hot-toast';
 
@@ -21,6 +21,7 @@ export default function MenuAdminForm({ selectedDate, onComplete, userId }: Menu
   const [newMenuName, setNewMenuName] = useState('');
   const [startTime, setStartTime] = useState('17:00');
   const [endTime, setEndTime] = useState('21:00');
+  const [isHoliday, setIsHoliday] = useState(false);
   
   // 選択された日付に基づいてメニューを取得
   useEffect(() => {
@@ -61,6 +62,15 @@ export default function MenuAdminForm({ selectedDate, onComplete, userId }: Menu
             // デフォルト値を設定
             setStartTime('17:00');
             setEndTime('21:00');
+          }
+          
+          // 休業日情報を取得
+          try {
+            const holidayStatus = await getHolidayStatus(dateStr);
+            setIsHoliday(holidayStatus);
+          } catch (holidayErr) {
+            console.error('休業日情報の取得に失敗しました:', holidayErr);
+            setIsHoliday(false);
           }
           
         } catch (err) {
@@ -188,6 +198,35 @@ export default function MenuAdminForm({ selectedDate, onComplete, userId }: Menu
     }
   };
   
+  // 休業日設定の更新処理
+  const handleUpdateHolidayStatus = async () => {
+    if (!selectedDate) return;
+    
+    try {
+      setLoading(true);
+      
+      // 日付をYYYY-MM-DD形式に変換
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      
+      // 休業日状態を更新
+      await updateHolidayStatus(dateStr, !isHoliday);
+      
+      // 状態を更新
+      setIsHoliday(!isHoliday);
+      
+      toast.success(`${!isHoliday ? '休業日に設定' : '営業日に設定'}しました`);
+      
+    } catch (err) {
+      console.error('休業日設定の更新に失敗しました:', err);
+      toast.error('休業日設定の更新に失敗しました');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
   // 選択された日付がなければメッセージを表示
   if (!selectedDate) {
     return <p className="p-6 text-center">日付が選択されていません</p>;
@@ -216,6 +255,29 @@ export default function MenuAdminForm({ selectedDate, onComplete, userId }: Menu
         </div>
       ) : (
         <>
+          {/* 休業日設定 */}
+          <div className="mb-8">
+            <h3 className="text-xl font-semibold mb-4">休業日設定</h3>
+            <div className="flex items-center">
+              <label className="inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={isHoliday}
+                  onChange={handleUpdateHolidayStatus}
+                  disabled={loading}
+                />
+                <div className={`relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer ${isHoliday ? 'bg-red-600' : 'bg-gray-200'} peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600`}></div>
+                <span className="ms-3 text-lg font-medium">
+                  {isHoliday ? '休業日に設定' : '営業日に設定'}
+                </span>
+              </label>
+            </div>
+            <p className="mt-2 text-sm text-gray-600">
+              休業日に設定すると、ユーザーはこの日を予約できなくなります。
+            </p>
+          </div>
+          
           {/* 現在のメニュー一覧 */}
           <div className="mb-8">
             <h3 className="text-xl font-semibold mb-4">登録済みメニュー</h3>
@@ -236,8 +298,15 @@ export default function MenuAdminForm({ selectedDate, onComplete, userId }: Menu
                       disabled={loading}
                       title="メニューを削除"
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="10" fill="#FEE2E2" stroke="#EF4444" strokeWidth="1.5" />
+                        <path 
+                          strokeLinecap="round" 
+                          strokeLinejoin="round" 
+                          strokeWidth="2.5" 
+                          stroke="#EF4444" 
+                          d="M15 9L9 15M9 9l6 6"
+                        />
                       </svg>
                     </button>
                   </div>

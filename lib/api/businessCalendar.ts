@@ -162,3 +162,63 @@ export async function getBusinessTimeByDate(date: string) {
     return defaultTime;
   }
 }
+
+// 特定の日付の休業日フラグを更新する関数
+export async function updateHolidayStatus(date: string, isHoliday: boolean) {
+  try {
+    // 日付形式のバリデーション
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      throw new Error(`無効な日付形式です: ${date}`);
+    }
+    
+    const { data, error } = await supabase
+      .from('business_calendar_tbl')
+      .upsert(
+        {
+          day: date,
+          holiday: isHoliday
+        },
+        {
+          onConflict: 'day'
+        }
+      );
+    
+    if (error) {
+      console.error('休業日設定の更新に失敗しました:', JSON.stringify(error, null, 2));
+      throw error;
+    }
+    
+    return true;
+  } catch (e) {
+    console.error('休業日設定の更新中に予期せぬエラーが発生しました:', e);
+    throw e;
+  }
+}
+
+// 特定の日付の休業日フラグを取得する関数
+export async function getHolidayStatus(date: string) {
+  try {
+    // 日付形式のバリデーション (YYYY-MM-DD形式を期待)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      console.warn(`無効な日付形式です: ${date}`);
+      return false;
+    }
+    
+    const { data, error } = await supabase
+      .from('business_calendar_tbl')
+      .select('holiday')
+      .eq('day', date)
+      .maybeSingle();
+    
+    if (error) {
+      console.error(`休業日情報の取得エラー: ${date}`, JSON.stringify(error, null, 2));
+      return false;
+    }
+    
+    // データが存在しない場合またはholidayがnullの場合はfalseを返す
+    return data?.holiday || false;
+  } catch (e) {
+    console.error('休業日情報の取得中に予期せぬエラーが発生しました:', e);
+    return false;
+  }
+}
