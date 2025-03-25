@@ -3,9 +3,8 @@
 import { useState, useEffect } from 'react';
 import { format, startOfMonth, endOfMonth, isSameDay, getDate, getMonth, getYear, addMonths } from 'date-fns';
 import { ja } from 'date-fns/locale';
-import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
-import { getBusinessCalendar } from '@/lib/api';
-import { BusinessCalendar } from '@/lib/supabase';
+import { toZonedTime } from 'date-fns-tz';
+import { getBusinessCalendar } from '@/lib/api/index';
 
 // 日本のタイムゾーン
 const TIMEZONE = 'Asia/Tokyo';
@@ -17,10 +16,6 @@ interface CalendarProps {
 
 // 日本語の曜日と月の名前
 const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
-const months = [
-  '1月', '2月', '3月', '4月', '5月', '6月',
-  '7月', '8月', '9月', '10月', '11月', '12月'
-];
 
 export default function Calendar({ className = '', onDateSelect }: CalendarProps) {
   // 日本時間での現在日付を取得
@@ -28,13 +23,11 @@ export default function Calendar({ className = '', onDateSelect }: CalendarProps
   const [currentDate, setCurrentDate] = useState(initialDate);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [holidays, setHolidays] = useState<Record<string, boolean>>({});
-  const [loading, setLoading] = useState(false);
   
   // 休業日情報を取得
   useEffect(() => {
     const fetchHolidays = async () => {
       try {
-        setLoading(true);
         const businessCalendar = await getBusinessCalendar();
         
         // 休業日の辞書を作成
@@ -48,8 +41,6 @@ export default function Calendar({ className = '', onDateSelect }: CalendarProps
         setHolidays(holidayMap);
       } catch (error) {
         console.error('休業日情報の取得に失敗しました:', error);
-      } finally {
-        setLoading(false);
       }
     };
     

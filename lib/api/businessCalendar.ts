@@ -80,7 +80,7 @@ export async function updateBusinessTime(date: string, startTime: string, endTim
       throw new Error(`無効な時間形式です: ${startTime} または ${endTime}`);
     }
     
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('business_calendar_tbl')
       .upsert(
         {
@@ -171,7 +171,7 @@ export async function updateHolidayStatus(date: string, isHoliday: boolean) {
       throw new Error(`無効な日付形式です: ${date}`);
     }
     
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('business_calendar_tbl')
       .upsert(
         {

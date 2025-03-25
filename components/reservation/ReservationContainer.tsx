@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
-import { getMenusByDate, createReservation, updateMenu, deleteReservation, getBusinessTimeByDate, getHolidayStatus, getReservationByMenuId } from '@/lib/api';
+import { getMenusByDate, createReservation, updateMenu, deleteReservation, getBusinessTimeByDate, getHolidayStatus, getReservationByMenuId } from '@/lib/api/index';
 import { Menu } from '@/lib/supabase';
 import { useUser } from '@/lib/UserContext';
 import MenuList from './MenuList';
@@ -20,6 +20,7 @@ interface ReservationContainerProps {
 
 export default function ReservationContainer({ selectedDate, onReservationComplete, userId, isHoliday: isHolidayProp = false }: ReservationContainerProps) {
   // ユーザーコンテキストからユーザー情報を取得
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { currentUser } = useUser();
   
   // 状態変数
@@ -46,6 +47,7 @@ export default function ReservationContainer({ selectedDate, onReservationComple
     if (!isHolidayProp && selectedDate) {
       fetchData(selectedDate);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isHolidayProp, selectedDate]);
   
   // 営業時間から選択可能な時間枠を生成する関数
@@ -188,7 +190,8 @@ export default function ReservationContainer({ selectedDate, onReservationComple
       // 選択をリセット
       setSelectedMenu(null);
     }
-  }, [selectedDate]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate, isHolidayProp]);
   
   // 日付に既に予約済みメニューがあるかチェックする関数
   const hasReservedMenuOnDate = (dateStr: string) => {

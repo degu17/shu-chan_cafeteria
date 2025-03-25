@@ -3,20 +3,19 @@
 import { useState, useEffect } from 'react';
 import Calendar from '@/components/calendar-view';
 import RestaurantReservation from '@/components/menu-form';
-import { getMenus, getBusinessCalendar, getUserById } from '@/lib/api';
-import { Menu, BusinessCalendar, User } from '@/lib/supabase';
+import { getMenus, getUserById } from '@/lib/api/index';
+import { Menu } from '@/lib/supabase';
 import { AnimatePresence } from 'framer-motion';
 import ReservationDetailsModal from '@/components/reservation/ReservationDetailsModal';
 import { useUser } from '@/lib/UserContext';
 import MenuAdminForm from '@/components/admin/menu-admin-form';
 
 export default function Home() {
-  const { userId, setUserId, users, loading: userLoading, currentUser } = useUser();
+  const { userId, setUserId, users, loading: userLoading} = useUser();
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isReservationDetailsModalOpen, setIsReservationDetailsModalOpen] = useState(false);
   const [menus, setMenus] = useState<Menu[]>([]);
-  const [businessDays, setBusinessDays] = useState<BusinessCalendar[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string>('user');
@@ -27,27 +26,8 @@ export default function Home() {
       try {
         setLoading(true);
         // メニューデータの取得
-        try {
-          const menuData = await getMenus();
-          setMenus(menuData);
-        } catch (menuErr) {
-          console.error('メニューデータの取得に失敗しました:', menuErr);
-        }
-        
-        // 営業カレンダーデータの取得
-        try {
-          // 将来的に実装予定のため、現時点ではコメントアウト
-          // const calendarData = await getBusinessCalendar();
-          // setBusinessDays(calendarData);
-          
-          // 仮のデータを設定
-          setBusinessDays([]);
-        } catch (calendarErr) {
-          // エラーログを表示しない
-          // console.error('営業カレンダーデータの取得に失敗しました:', calendarErr);
-          setBusinessDays([]);
-        }
-        
+        const menuData = await getMenus();
+        setMenus(menuData);
         setError(null);
       } catch (err) {
         console.error('データの取得に失敗しました:', err);

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getMenusByDate, getBusinessTimeByDate, updateBusinessTime, addMenu, deleteMenu, updateHolidayStatus, getHolidayStatus } from '@/lib/api';
+import { getMenusByDate, getBusinessTimeByDate, updateBusinessTime, addMenu, deleteMenu, updateHolidayStatus, getHolidayStatus } from '@/lib/api/index';
 import { Menu } from '@/lib/supabase';
 import { toast } from 'react-hot-toast';
 
@@ -13,12 +13,17 @@ interface MenuAdminProps {
 }
 
 // 管理者用メニュー管理コンポーネント
-export default function MenuAdminForm({ selectedDate, onComplete, userId }: MenuAdminProps) {
+export default function MenuAdminForm({ 
+  selectedDate, 
+  onComplete, // eslint-disable-line @typescript-eslint/no-unused-vars
+  userId // eslint-disable-line @typescript-eslint/no-unused-vars
+}: MenuAdminProps) {
   // 状態変数
   const [menus, setMenus] = useState<Menu[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [newMenuName, setNewMenuName] = useState('');
+  const [menuNameError, setMenuNameError] = useState<string | null>(null);
   const [startTime, setStartTime] = useState('17:00');
   const [endTime, setEndTime] = useState('21:00');
   const [isHoliday, setIsHoliday] = useState(false);
@@ -85,10 +90,84 @@ export default function MenuAdminForm({ selectedDate, onComplete, userId }: Menu
     }
   }, [selectedDate]);
   
+  // メニュー名が安全かチェックする関数
+  const isMenuNameSafe = (name: string): boolean => {
+    // SQLインジェクションに使われる可能性のある文字や文字列のパターン
+    const dangerousPatterns = [
+      /(\s|^)(SELECT|INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE)(\s|$)/i,
+      /(\s|^)(UNION|JOIN|FROM|WHERE)(\s|$)/i,
+      /'.*'/,              // 単一引用符
+      /".*"/,              // 二重引用符
+      /;.*/,               // セミコロン以降のコマンド
+      /--/,                // SQLコメント
+      /\/\*/,              // ブロックコメント開始
+      /\*\//               // ブロックコメント終了
+    ];
+
+    // いずれかのパターンにマッチする場合は安全でないと判断
+    return !dangerousPatterns.some(pattern => pattern.test(name));
+  };
+
+  // 入力値の検証と整形を行う関数
+  const validateAndSanitizeMenuName = (name: string): string => {
+    // 先頭と末尾の空白を削除
+    const trimmedName = name.trim();
+    
+    // 空文字列のチェック
+    if (!trimmedName) {
+      setMenuNameError('メニュー名を入力してください');
+      return '';
+    }
+    
+    // 最大長のチェック
+    if (trimmedName.length > 50) {
+      setMenuNameError('メニュー名は50文字以内で入力してください');
+      return '';
+    }
+    
+    // 安全性チェック
+    if (!isMenuNameSafe(trimmedName)) {
+      setMenuNameError('メニュー名に使用できない文字が含まれています');
+      return '';
+    }
+    
+    // エラーをクリア
+    setMenuNameError(null);
+    
+    // HTMLタグなどをエスケープした安全な文字列を返す
+    return trimmedName
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  };
+
+  // メニュー名入力の変更ハンドラ
+  const handleMenuNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawInput = e.target.value;
+    setNewMenuName(rawInput);
+    
+    // リアルタイムでバリデーションを実行（ただしエラーメッセージは表示しない）
+    if (rawInput.trim()) {
+      isMenuNameSafe(rawInput);
+    } else {
+      setMenuNameError(null);
+    }
+  };
+  
   // メニューの追加処理
   const handleAddMenu = async () => {
-    if (!selectedDate || !newMenuName.trim()) {
-      toast.error('メニュー名を入力してください');
+    if (!selectedDate) {
+      toast.error('日付が選択されていません');
+      return;
+    }
+    
+    // 入力値を検証・整形
+    const sanitizedMenuName = validateAndSanitizeMenuName(newMenuName);
+    if (!sanitizedMenuName) {
+      // validateAndSanitizeMenuName内でエラーメッセージが設定される
+      toast.error(menuNameError || 'メニュー名が無効です');
       return;
     }
     
@@ -102,10 +181,11 @@ export default function MenuAdminForm({ selectedDate, onComplete, userId }: Menu
       const dateStr = `${year}-${month}-${day}`;
       
       // メニューを追加
-      await addMenu(newMenuName, dateStr);
+      await addMenu(sanitizedMenuName, dateStr);
       
       toast.success('メニューを追加しました');
       setNewMenuName('');
+      setMenuNameError(null);
       
       // 更新されたメニューを再取得
       const menuData = await getMenusByDate(dateStr);
@@ -326,17 +406,28 @@ export default function MenuAdminForm({ selectedDate, onComplete, userId }: Menu
                 <input
                   id="menu-name"
                   type="text"
-                  className="w-full p-2 border rounded"
+                  className={`w-full p-2 border rounded ${
+                    menuNameError ? 'border-red-500' : 'border-gray-300'
+                  }`}
                   value={newMenuName}
-                  onChange={(e) => setNewMenuName(e.target.value)}
+                  onChange={handleMenuNameChange}
                   placeholder="メニュー名を入力"
+                  maxLength={50}
+                  disabled={loading || isHoliday}
                 />
+                {menuNameError && (
+                  <p className="text-red-500 text-sm mt-1">{menuNameError}</p>
+                )}
               </div>
               
               <button
                 onClick={handleAddMenu}
-                disabled={loading || !newMenuName.trim()}
-                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded disabled:bg-gray-400"
+                disabled={loading || isHoliday || !newMenuName.trim()}
+                className={`bg-blue-500 text-white px-4 py-2 rounded ${
+                  loading || isHoliday || !newMenuName.trim()
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'hover:bg-blue-600'
+                }`}
               >
                 メニューを追加
               </button>

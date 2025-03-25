@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { getUserReservationDetails, getAllUsersReservationDetails } from '@/lib/api';
+import { getUserReservationDetails, getAllUsersReservationDetails } from '@/lib/api/index';
 import { useUser } from '@/lib/UserContext';
 
 interface ReservationDetailsModalProps {
