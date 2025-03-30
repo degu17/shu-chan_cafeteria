@@ -16,8 +16,6 @@ export default function Home() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isReservationDetailsModalOpen, setIsReservationDetailsModalOpen] = useState(false);
   const [menus, setMenus] = useState<Menu[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string>('user');
   const [isSelectedDateHoliday, setIsSelectedDateHoliday] = useState(false);
   const [holidayUpdates, setHolidayUpdates] = useState<Record<string, boolean>>({});
@@ -25,16 +23,11 @@ export default function Home() {
   useEffect(() => {
     async function fetchData() {
       try {
-        setLoading(true);
         // メニューデータの取得
         const menuData = await getMenus();
         setMenus(menuData);
-        setError(null);
       } catch (err) {
         console.error('データの取得に失敗しました:', err);
-        setError('データの取得に失敗しました。再度お試しください。');
-      } finally {
-        setLoading(false);
       }
     }
     
