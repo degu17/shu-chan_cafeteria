@@ -10,13 +10,15 @@ interface MenuAdminProps {
   selectedDate: Date | null;
   onComplete?: () => void;
   userId: number;
+  onHolidayStatusChange?: (date: string, isHoliday: boolean) => void;
 }
 
 // 管理者用メニュー管理コンポーネント
 export default function MenuAdminForm({ 
   selectedDate, 
   onComplete, // eslint-disable-line @typescript-eslint/no-unused-vars
-  userId // eslint-disable-line @typescript-eslint/no-unused-vars
+  userId, // eslint-disable-line @typescript-eslint/no-unused-vars
+  onHolidayStatusChange,
 }: MenuAdminProps) {
   // 状態変数
   const [menus, setMenus] = useState<Menu[]>([]);
@@ -296,6 +298,11 @@ export default function MenuAdminForm({
       
       // 状態を更新
       setIsHoliday(!isHoliday);
+      
+      // 親コンポーネントに通知
+      if (onHolidayStatusChange) {
+        onHolidayStatusChange(dateStr, !isHoliday);
+      }
       
       toast.success(`${!isHoliday ? '休業日に設定' : '営業日に設定'}しました`);
       

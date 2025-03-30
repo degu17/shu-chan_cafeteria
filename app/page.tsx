@@ -20,6 +20,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string>('user');
   const [isSelectedDateHoliday, setIsSelectedDateHoliday] = useState(false);
+  const [holidayUpdates, setHolidayUpdates] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     async function fetchData() {
@@ -54,7 +55,7 @@ export default function Home() {
     fetchUserRole();
   }, [userId]);
 
-  const handleDateSelect = (date: Date, isHoliday: boolean = false) => {
+  const handleDateSelect = (date: Date, isHoliday = false) => {
     setSelectedDate(date);
     setIsSelectedDateHoliday(isHoliday);
     setIsModalOpen(true);
@@ -74,12 +75,32 @@ export default function Home() {
   // メニューの状態に応じたメッセージを返す関数
   const getMenuStatusMessage = (menu: Menu) => {
     if (menu.reserved) {
-      return `${menu.date} は${menu.name}を提供します`;
+      return `${formatJapaneseDate(menu.date)}は${menu.name}を提供します`;
     } else if (hasReservedMenuOnSameDay(menu.date)) {
       return `既にこの日は他メニューの提供が決定しています`;
     } else {
       return '予約可能';
     }
+  };
+
+  // 日付をYYYY-MM-DD形式から日本語表記に変換する関数
+  const formatJapaneseDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return dateStr;
+    
+    // 年月日を取り出す
+    const year = parseInt(parts[0]);
+    const month = parseInt(parts[1]);
+    const day = parseInt(parts[2]);
+    
+    // 日本語の曜日を取得
+    const date = new Date(year, month - 1, day);
+    const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+    const weekday = weekdays[date.getDay()];
+    
+    return `${year}年${month}月${day}日(${weekday})`;
   };
 
   // メニューの状態に応じたテキストカラーを返す関数
@@ -93,8 +114,20 @@ export default function Home() {
     }
   };
 
+  // 休業日情報が更新されたときの処理
+  const handleHolidayStatusChange = (dateStr: string, isHoliday: boolean) => {
+    // 選択中の日付の休業日状態を更新
+    setIsSelectedDateHoliday(isHoliday);
+    
+    // カレンダー表示用の休業日更新情報を設定
+    setHolidayUpdates(prev => ({
+      ...prev,
+      [dateStr]: isHoliday
+    }));
+  };
+
   return (
-    <div>
+    <div className="flex flex-col min-h-screen">
       <header>
      <div className="flex items-center justify-between p-4 bg-white shadow">
       <button
@@ -130,40 +163,66 @@ export default function Home() {
       </div>
       </div>
       </header>
-      <main>
-        {loading ? (
-          <div className="flex justify-center items-center h-64">
-            <p className="text-lg">データを読み込み中...</p>
-          </div>
-        ) : error ? (
-          <div className="flex justify-center items-center h-64">
-            <p className="text-red-500">{error}</p>
-          </div>
-        ) : (
-          <>
-            <div className="mb-8 mt-4 ml-8 mr-8">
-              <Calendar onDateSelect={handleDateSelect} />
+      <main className="flex-1 p-4">
+        {/* メイン画面コンテンツ */}
+        <div className="max-w-7xl mx-auto">
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="md:col-span-2">
+              <Calendar 
+                onDateSelect={handleDateSelect}
+                holidayUpdates={holidayUpdates} 
+              />
             </div>
             
-            {/* メニュー一覧の表示（例） */}
-            {menus.length > 0 && (
-              <div className="mb-8 ml-16 mr-16">
-                <h2 className="text-xl font-bold mb-4">今後提供予定のメニュー</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {menus.map((menu) => (
-                    <div key={menu.menu_id} className="border p-4 rounded shadow">
-                      <h3 className="font-bold">{menu.name}</h3>
-                      <p>提供予定日: {menu.date}</p>
-                      <p className={getMenuStatusColor(menu)}>
-                        {getMenuStatusMessage(menu)}
-                      </p>
-                    </div>
-                  ))}
+            {/* 今後提供予定のメニュー */}
+            <div className="md:col-span-1">
+              {menus.length > 0 ? (
+                <div className="bg-white p-4 rounded-lg shadow-lg sticky top-4">
+                  <h2 className="text-xl font-bold mb-4 border-b pb-2">今後提供予定のメニュー</h2>
+                  <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                    {menus.map((menu) => (
+                      <div 
+                        key={menu.menu_id} 
+                        className={`border p-3 rounded shadow-sm hover:shadow-md transition-shadow duration-200 ${menu.reserved ? 'border-green-300 bg-green-50' : ''}`}
+                      >
+                        <h3 className="font-bold text-lg leading-tight">{menu.name}</h3>
+                        <p className="text-sm text-gray-600 mt-1">
+                          提供予定日: {formatJapaneseDate(menu.date)}
+                        </p>
+                        <div className={`${getMenuStatusColor(menu)} text-sm mt-2 flex items-center`}>
+                          {menu.reserved ? (
+                            <>
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                            </>
+                          ) : hasReservedMenuOnSameDay(menu.date) ? (
+                            <>
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                              </svg>
+                            </>
+                          ) : (
+                            <>
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                            </>
+                          )}
+                          <span className="whitespace-normal">{getMenuStatusMessage(menu)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
-          </>
-        )}
+              ) : (
+                <div className="bg-white p-4 rounded-lg shadow-lg">
+                  <p className="text-center text-gray-500">提供予定のメニューはありません</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
         
         {/* モーダルポップアップ */}
         {isModalOpen && selectedDate && (
@@ -191,6 +250,7 @@ export default function Home() {
                   selectedDate={selectedDate}
                   onComplete={closeModal}
                   userId={userId}
+                  onHolidayStatusChange={handleHolidayStatusChange}
                 />
               ) : (
                 <RestaurantReservation 

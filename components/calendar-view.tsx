@@ -12,12 +12,13 @@ const TIMEZONE = 'Asia/Tokyo';
 interface CalendarProps {
   className?: string;
   onDateSelect?: (date: Date, isHoliday?: boolean) => void;
+  holidayUpdates?: Record<string, boolean>;
 }
 
 // 日本語の曜日と月の名前
 const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
 
-export default function Calendar({ className = '', onDateSelect }: CalendarProps) {
+export default function Calendar({ className = '', onDateSelect, holidayUpdates = {} }: CalendarProps) {
   // 日本時間での現在日付を取得
   const initialDate = toZonedTime(new Date(), TIMEZONE);
   const [currentDate, setCurrentDate] = useState(initialDate);
@@ -46,6 +47,16 @@ export default function Calendar({ className = '', onDateSelect }: CalendarProps
     
     fetchHolidays();
   }, [currentDate]);
+  
+  // 外部から休業日情報が更新された場合に対応
+  useEffect(() => {
+    if (Object.keys(holidayUpdates).length > 0) {
+      setHolidays(prev => ({
+        ...prev,
+        ...holidayUpdates
+      }));
+    }
+  }, [holidayUpdates]);
   
   // 現在の年と月を取得
   const currentYear = getYear(currentDate);
